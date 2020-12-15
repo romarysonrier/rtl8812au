@@ -2418,7 +2418,7 @@ static void rtw_sha256_prf(u8 *key, size_t key_len, char *label,
 {
 	u16 counter = 1;
 	size_t pos, plen;
-	u8 hash[SHA256_MAC_LEN];
+	u8 hash[RTW_SHA256_MAC_LEN];
 	u8 *addr[4];
 	size_t len[4];
 	u8 counter_le[2], length_le[2];
@@ -2855,7 +2855,7 @@ void wpa_tdls_generate_tpk(_adapter *padapter, PVOID sta)
 	u8 *SNonce = psta->SNonce;
 	u8 *ANonce = psta->ANonce;
 
-	u8 key_input[SHA256_MAC_LEN];
+	u8 key_input[RTW_SHA256_MAC_LEN];
 	u8 *nonce[2];
 	size_t len[2];
 	u8 data[3 * ETH_ALEN];
