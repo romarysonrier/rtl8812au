@@ -586,14 +586,12 @@ static const struct ieee80211_txrx_stypes
 
 static u64 rtw_get_systime_us(void)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0))
 	struct timespec ts;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
-	getboottime(&ts);
-#else
 	get_monotonic_boottime(&ts);
-#endif
 	return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	return ktime_to_us(ktime_get_boottime());
 #else
 	struct timeval tv;
 	do_gettimeofday(&tv);
@@ -6364,19 +6362,24 @@ exit:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,8,0))
+static void cfg80211_rtw_update_mgmt_frame_register(struct wiphy *wiphy,
+                                             struct wireless_dev *wdev,
+                                             struct mgmt_frame_regs *upd)
+#else
 static void cfg80211_rtw_mgmt_frame_register(struct wiphy *wiphy,
-#if (CFG80211_API_LEVEL >= KERNEL_VERSION(3, 6, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 	struct wireless_dev *wdev,
 #else
 	struct net_device *ndev,
 #endif
 	u16 frame_type, bool reg)
+#endif
 {
-#if (CFG80211_API_LEVEL >= KERNEL_VERSION(3, 6, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 	struct net_device *ndev = wdev_to_ndev(wdev);
 #endif
 	_adapter *adapter;
-
 	struct rtw_wdev_priv *pwdev_priv;
 
 	if (ndev == NULL)
@@ -6389,20 +6392,6 @@ static void cfg80211_rtw_mgmt_frame_register(struct wiphy *wiphy,
 	RTW_INFO(FUNC_ADPT_FMT" frame_type:%x, reg:%d\n", FUNC_ADPT_ARG(adapter),
 		frame_type, reg);
 #endif
-
-	/* Wait QC Verify */
-	return;
-
-	switch (frame_type) {
-	case IEEE80211_STYPE_PROBE_REQ: /* 0x0040 */
-		SET_CFG80211_REPORT_MGMT(pwdev_priv, IEEE80211_STYPE_PROBE_REQ, reg);
-		break;
-	case IEEE80211_STYPE_ACTION: /* 0x00D0 */
-		SET_CFG80211_REPORT_MGMT(pwdev_priv, IEEE80211_STYPE_ACTION, reg);
-		break;
-	default:
-		break;
-	}
 
 exit:
 	return;
@@ -7823,12 +7812,18 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	.update_ft_ies = cfg80211_rtw_update_ft_ies,
 #endif
 
-#if (CFG80211_API_LEVEL >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
 	.mgmt_tx = cfg80211_rtw_mgmt_tx,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,8,0))
+	.update_mgmt_frame_registrations = cfg80211_rtw_update_mgmt_frame_register,
+#else
 	.mgmt_frame_register = cfg80211_rtw_mgmt_frame_register,
-#elif (CFG80211_API_LEVEL >= KERNEL_VERSION(2, 6, 34) && CFG80211_API_LEVEL <= KERNEL_VERSION(2, 6, 35))
+#endif
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35))
 	.action = cfg80211_rtw_mgmt_tx,
 #endif
+
 
 #if defined(CONFIG_TDLS) && (CFG80211_API_LEVEL >= KERNEL_VERSION(3, 2, 0))
 	.tdls_mgmt = cfg80211_rtw_tdls_mgmt,
