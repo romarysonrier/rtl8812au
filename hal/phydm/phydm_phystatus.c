@@ -1032,6 +1032,15 @@ void phydm_phy_sts_n_parsing(struct dm_struct *dm,
 		phy_info->bt_rx_rssi_percentage = pwdb_all_bt;
 		phy_info->rx_power = rx_pwr_all;
 		phy_info->recv_signal_power = rx_pwr_all;
+		phy_info->rx_count=rf_rx_num;
+		/* Fill in per-path antenna index */
+		phy_info->ant_idx[0] = phy_sts->antidx_a;
+		phy_info->ant_idx[1] = phy_sts->antidx_b;
+		phy_info->ant_idx[2] = phy_sts->antidx_c;
+		phy_info->ant_idx[3] = phy_sts->antidx_d;
+		//printk(KERN_ERR "rx_count: %d stream_rxevm[%d]: %d stream_rxevm[%d]: %d\n",rf_rx_num,phy_sts->antidx_a,phy_sts->stream_rxevm[0],phy_sts->antidx_b,phy_sts->stream_rxevm[1]);
+
+
 
 		/* @(3)EVM of HT rate */
 		for (i = 0; i < pktinfo->rate_ss; i++) {
@@ -1234,7 +1243,9 @@ void phydm_rx_physts_1st_type(struct dm_struct *dm,
 		phy_info->rx_pwdb_all = phydm_pwr_2_percent(rx_pwr_db);
 
 		/*@(4)EVM of OFDM rate*/
-		for (i = 0; i < pktinfo->rate_ss; i++) {
+		for (i = RF_PATH_A; i < dm->num_rf_path; i++) {
+			if (!(dm->rf_path_rx_enable & BIT(i)))
+				continue;
 			if (!pktinfo->is_cck_rate &&
 			    pktinfo->data_rate <= ODM_RATE54M) {
 				val_s8 = phy_sts->sigevm;
@@ -1255,6 +1266,7 @@ void phydm_rx_physts_1st_type(struct dm_struct *dm,
 			/*@[EVM dBm]*/
 			phy_info->rx_mimo_evm_dbm[i] = phydm_evm_dbm(val_s8);
 		}
+//	        printk(KERN_ERR "ODM_IC_11AC_SERIES: %d / %d : RSSI %d %d SNR %d %d RXEVM %d %d \n", pktinfo->rate_ss, rf_rx_num, phy_sts->gain_trsw[0], phy_sts->gain_trsw[1], phy_sts->rxsnr[0], phy_sts->rxsnr[1], phy_sts->rxevm[0], phy_sts->rxevm[1] );
 		phydm_parsing_cfo(dm, pktinfo,
 				  phy_sts->cfotail, pktinfo->rate_ss);
 	}
@@ -1267,6 +1279,13 @@ void phydm_rx_physts_1st_type(struct dm_struct *dm,
 	phydm_get_sq(dm, phy_info, pktinfo->is_cck_rate);
 
 	dm->rx_pwdb_ave = dm->rx_pwdb_ave + phy_info->rx_pwdb_all;
+
+	phy_info->rx_count=rf_rx_num;
+	/* Fill in per-path antenna index */
+	phy_info->ant_idx[0] = phy_sts->antidx_anta;
+	phy_info->ant_idx[1] = phy_sts->antidx_antb;
+	phy_info->ant_idx[2] = phy_sts->antidx_antc;
+	phy_info->ant_idx[3] = phy_sts->antidx_antd;
 
 	#ifdef CONFIG_PHYDM_ANTENNA_DIVERSITY
 	fat_tab->hw_antsw_occur = phy_sts->hw_antsw_occur;

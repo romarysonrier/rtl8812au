@@ -4020,6 +4020,8 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 		if(pHalData->NumTotalRFPath>1) {
 			tmp_32bit = (1<<IEEE80211_RADIOTAP_ANTENNA) |
 				(1<<IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
+				(1<<IEEE80211_RADIOTAP_DBM_ANTNOISE)  |
+				(1<<IEEE80211_RADIOTAP_LOCK_QUALITY)  |
 				(1<<IEEE80211_RADIOTAP_EXT) |
 				(1<<IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
 
@@ -4029,7 +4031,10 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 			}
 		}
 		tmp_32bit = (1<<IEEE80211_RADIOTAP_ANTENNA) |
-			(1<<IEEE80211_RADIOTAP_DBM_ANTSIGNAL);
+			(1<<IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
+			(1<<IEEE80211_RADIOTAP_DBM_ANTNOISE)  |
+			(1<<IEEE80211_RADIOTAP_LOCK_QUALITY) |
+			(1<<IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
 		memcpy(&hdr_buf[rt_len], &tmp_32bit, 4);
 		rt_len += 4;
 	}
@@ -4143,14 +4148,13 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 		hdr_buf[rt_len] = pattrib->phy_info.recv_signal_power;
 		rt_len += 1;
 
-#if 0
-	/* dBm Antenna Noise */
-	rtap_hdr->it_present |= (1 << IEEE80211_RADIOTAP_DBM_ANTNOISE);
-	hdr_buf[rt_len] = 0;
-	rt_len += 1;
+#if 1
+		/* dBm Antenna Noise */
+		rtap_hdr->it_present |= (1 << IEEE80211_RADIOTAP_DBM_ANTNOISE);
+		hdr_buf[rt_len] = pattrib->phy_info.recv_signal_power - pattrib->phy_info.rx_snr[0]; //UGLY : TDB AVG/MAX of SNR
+		rt_len += 1;
 #endif
 
-		rt_len++;	// alignment
 	}
 
 	/* Signal Quality */
@@ -4158,11 +4162,11 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 	tmp_16bit = cpu_to_le16(pattrib->phy_info.signal_quality);
 	memcpy(&hdr_buf[rt_len], &tmp_16bit, 2);
 	rt_len += 2;
-#if 0
+#if 1
 
 	/* Antenna */
 	rtap_hdr->it_present |= (1 << IEEE80211_RADIOTAP_ANTENNA);
-	hdr_buf[rt_len] = pHalData->rf_type;
+	hdr_buf[rt_len] = pattrib->phy_info.rx_count;
 	rt_len += 1;
 
 	rt_len++;	// alignment
@@ -4170,11 +4174,10 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 
 	/* RX flags */
 	rtap_hdr->it_present |= (1 << IEEE80211_RADIOTAP_RX_FLAGS);
-#if 0
-	tmp_16bit = cpu_to_le16(0);
-	memcpy(ptr, &tmp_16bit, 1);
-#endif
+	tmp_16bit = pHalData->NumTotalRFPath;
+	memcpy(&hdr_buf[rt_len], &tmp_16bit, 2);
 	rt_len += 2;
+	//printk(KERN_ERR "NumTotalRFPath: %d\n", pHalData->NumTotalRFPath);
 
 	/* MCS information */
 	if (pattrib->data_rate >= DESC_RATEMCS0 && pattrib->data_rate <= DESC_RATEMCS31) {
@@ -4279,8 +4282,20 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 
 	if (pattrib->physt) {
 		for(i=0; i<pHalData->NumTotalRFPath; i++) {
+                        //  IEEE80211_RADIOTAP_DBM_ANTSIGNAL
 			hdr_buf[rt_len] = pattrib->phy_info.rx_pwr[i];
 			rt_len ++;
+                        //  IEEE80211_RADIOTAP_DBM_ANTNOISE
+			hdr_buf[rt_len] = pattrib->phy_info.rx_pwr[i] - pattrib->phy_info.rx_snr[i];
+			rt_len ++;
+			// alignment for the following u16 short 
+			rt_len ++;	// alignment
+                        //  IEEE80211_RADIOTAP_LOCK_QUALITY
+			tmp_16bit = cpu_to_le16(pattrib->phy_info.rx_mimo_signal_quality[i]);
+			memcpy(&hdr_buf[rt_len], &tmp_16bit, 2);
+			rt_len += 2;
+			//  IEEE80211_RADIOTAP_ANTENNA
+			// hdr_buf[rt_len] = pattrib->phy_info.ant_idx[i];
 			hdr_buf[rt_len] = i;
 			rt_len ++;
 		}
