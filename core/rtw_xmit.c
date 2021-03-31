@@ -4389,6 +4389,14 @@ static void do_queue_select(_adapter	*padapter, struct pkt_attrib *pattrib)
 #endif /* CONFIG_MCC_MODE */
 }
 
+#ifdef OPENHD_THEO_PATCH
+int rtw_ieee80211_radiotap_iterator_next(struct ieee80211_radiotap_iterator *iterator);
+int rtw_ieee80211_radiotap_iterator_init(
+	struct ieee80211_radiotap_iterator *iterator,
+	struct ieee80211_radiotap_header *radiotap_header,
+	int max_length, const struct ieee80211_radiotap_vendor_namespaces *vns);
+#endif //OPENHD_THEO_PATCH
+	
 /*
  * The main transmit(tx) entry
  *
@@ -4417,6 +4425,12 @@ s32 rtw_monitor_xmit_entry(struct sk_buff *skb, struct net_device *ndev)
 	struct ieee80211_radiotap_iterator iterator; // net/cfg80211.h
 	u8 rtap_buf[256];
 
+#ifdef OPENHD_THEO_PATCH
+	struct ieee80211_radiotap_header *parsertap_hdr;
+	u8 fixed_rate = MGN_1M, sgi = 0, bwidth = 0, ldpc = 0, stbc = 0;
+	u16 txflags = 0;
+#endif //OPENHD_THEO_PATCH
+
 	int alloc_tries, alloc_delay;
 
 	rtw_mstat_update(MSTAT_TYPE_SKB, MSTAT_ALLOC_SUCCESS, skb->truesize);
@@ -4432,6 +4446,87 @@ s32 rtw_monitor_xmit_entry(struct sk_buff *skb, struct net_device *ndev)
 
 	if (unlikely(rtap_hdr->it_version))
 		goto fail;
+	
+#ifdef OPENHD_THEO_PATCH
+	//ADD T.Beauchant: Parse radiotap header
+	parsertap_hdr = (struct ieee80211_radiotap_header *)skb->data;
+	ret = rtw_ieee80211_radiotap_iterator_init(&iterator, parsertap_hdr, skb->len, NULL);
+	while (!ret) {
+		ret = rtw_ieee80211_radiotap_iterator_next(&iterator);
+
+		if (ret)
+			continue;
+
+		/* see if this argument is something we can use */
+		switch (iterator.this_arg_index) {
+
+		case IEEE80211_RADIOTAP_RATE:		/* u8 */
+			fixed_rate = *iterator.this_arg;
+			break;
+
+		case IEEE80211_RADIOTAP_TX_FLAGS:
+			txflags = get_unaligned_le16(iterator.this_arg);
+			break;
+
+		case IEEE80211_RADIOTAP_MCS: {		/* u8,u8,u8 */
+			u8 mcs_have = iterator.this_arg[0];
+			if (mcs_have & IEEE80211_RADIOTAP_MCS_HAVE_MCS) {
+				fixed_rate = iterator.this_arg[2] & 0x7f;
+				if(fixed_rate > 31)
+					fixed_rate = 0;
+				fixed_rate += MGN_MCS0;
+			}
+			if ((mcs_have & 4) && 
+			    (iterator.this_arg[1] & 4))
+				sgi = 1;
+			if ((mcs_have & 1) && 
+			    (iterator.this_arg[1] & 1))
+				bwidth = 1;
+			if ((mcs_have & 0x10) && 
+			    (iterator.this_arg[1] & 0x10))
+				ldpc = 1;
+			if ((mcs_have & 0x20))
+				stbc = (iterator.this_arg[1] >> 5) & 3;	
+		}
+		break;
+
+		case IEEE80211_RADIOTAP_VHT: {
+		/* u16 known, u8 flags, u8 bandwidth, u8 mcs_nss[4], u8 coding, u8 group_id, u16 partial_aid */
+			u8 known = iterator.this_arg[0];
+			u8 flags = iterator.this_arg[2];
+			unsigned int mcs, nss;
+			if((known & 4) && (flags & 4))
+				sgi = 1;
+			if((known & 1) && (flags & 1))
+				stbc = 1;
+			if(known & 0x40) {
+				bwidth = iterator.this_arg[3] & 0x1f;
+				if(bwidth>=1 && bwidth<=3)
+					bwidth = 1; // 40 MHz
+				else if(bwidth>=4 && bwidth<=10)
+					bwidth = 2;	// 80 MHz
+				else
+					bwidth = 0; // 20 MHz
+			}
+			if(iterator.this_arg[8] & 1)
+				ldpc = 1;
+			mcs = (iterator.this_arg[4]>>4) & 0x0f;
+			nss = iterator.this_arg[4] & 0x0f;
+			if(nss > 0) {
+				if(nss > 4) nss = 4;
+				if(mcs > 9) mcs = 9;
+				fixed_rate = MGN_VHT1SS_MCS0 + ((nss-1)*10 + mcs);
+			}
+		}
+		break;
+
+		default:
+			break;
+		}
+	}
+#endif //OPENHD_THEO_PATCH
+	
+	
 
 	if (unlikely(skb->len < rtap_len))
 		goto fail;
@@ -4498,6 +4593,15 @@ s32 rtw_monitor_xmit_entry(struct sk_buff *skb, struct net_device *ndev)
 		pattrib->stbc = 0;
 
 	}
+
+#ifdef OPENHD_THEO_PATCH
+	pattrib->rate = fixed_rate;
+	pattrib->sgi = sgi;
+	pattrib->bwmode = bwidth; // 0-20 MHz, 1-40 MHz, 2-80 MHz
+	pattrib->ldpc = ldpc;
+	pattrib->stbc = stbc;
+#endif //OPENHD_THEO_PATCH
+	
 
 	if (pregpriv->monitor_retransmit)
 		pattrib->retry_ctrl = _TRUE;

@@ -1469,6 +1469,11 @@ phy_SetTxPowerByRateBase(
 			, RateSection, (Band == BAND_ON_2_4G) ? "2.4" : "5", RfPath);
 		return;
 	}
+	
+#ifdef OPENHD_THEO_PATCH
+	if (Adapter->registrypriv.RegTxPowerIndexOverride)
+		Value = Adapter->registrypriv.RegTxPowerIndexOverride;
+#endif //OPENHD_THEO_PATCH
 
 	if (Band == BAND_ON_2_4G)
 		pHalData->TxPwrByRateBase2_4G[RfPath][RateSection] = Value;
@@ -2733,6 +2738,12 @@ PHY_SetTxPowerByRate(
 		RTW_INFO("Invalid RateIndex %d in %s\n", rateIndex, __FUNCTION__);
 		return;
 	}
+	
+#ifdef OPENHD_THEO_PATCH
+	/* Disable offset when override is enabled jic, even
+		though its value should not be used in that case anyway. */
+	if (pAdapter->registrypriv.RegTxPowerIndexOverride) Value = 0;
+#endif //OPENHD_THEO_PATCH
 
 	pHalData->TxPwrByRateOffset[Band][RFPath][rateIndex] = Value;
 }
@@ -2823,6 +2834,12 @@ PHY_SetTxPowerIndexByRateArray(
 	int	i = 0;
 
 	for (i = 0; i < RateArraySize; ++i) {
+		
+#ifdef OPENHD_THEO_PATCH
+		if (pAdapter->registrypriv.RegTxPowerIndexOverride)
+			powerIndex = (u32)pAdapter->registrypriv.RegTxPowerIndexOverride;
+#endif //OPENHD_THEO_PATCH
+		
 #if DBG_TX_POWER_IDX
 		struct txpwr_idx_comp tic;
 
@@ -3694,6 +3711,11 @@ PHY_SetTxPowerIndex(
 	IN	u8				Rate
 )
 {
+#ifdef OPENHD_THEO_PATCH
+	if (pAdapter->registrypriv.RegTxPowerIndexOverride)
+		PowerIndex = (u32)pAdapter->registrypriv.RegTxPowerIndexOverride;
+#endif //OPENHD_THEO_PATCH
+	
 	rtw_hal_set_tx_power_index(pAdapter, PowerIndex, RFPath, Rate);
 }
 

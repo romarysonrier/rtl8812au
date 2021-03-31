@@ -590,6 +590,12 @@ uint rtw_TxBBSwing_5G = 0xFF;
 module_param(rtw_TxBBSwing_5G, uint, 0644);
 MODULE_PARM_DESC(rtw_TxBBSwing_5G, "default init value:0xFF");
 
+#ifdef OPENHD_THEO_PATCH
+int rtw_tx_pwr_idx_override = 0;
+module_param(rtw_tx_pwr_idx_override, int, 0644);
+MODULE_PARM_DESC(rtw_tx_pwr_idx_override, "0-63 int value to force-set all power index values to");
+#endif //OPENHD_THEO_PATCH
+
 uint rtw_OffEfuseMask = 0;
 module_param(rtw_OffEfuseMask, uint, 0644);
 MODULE_PARM_DESC(rtw_OffEfuseMask, "default open Efuse Mask value:0");
@@ -1115,6 +1121,12 @@ uint loadparam(_adapter *padapter)
 	registry_par->RegEnableTxPowerLimit = (u8)rtw_tx_pwr_lmt_enable;
 #endif
 	registry_par->RegEnableTxPowerByRate = (u8)rtw_tx_pwr_by_rate;
+	
+#ifdef OPENHD_THEO_PATCH
+	if (rtw_tx_pwr_idx_override > 0x3F)
+		rtw_tx_pwr_idx_override = 0x3F;
+	registry_par->RegTxPowerIndexOverride = (u8)rtw_tx_pwr_idx_override;
+#endif //OPENHD_THEO_PATCH
 
 	rtw_regsty_load_target_tx_power(registry_par);
 

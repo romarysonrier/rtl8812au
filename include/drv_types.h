@@ -333,6 +333,10 @@ struct registry_priv {
 	u8	RegEnableTxPowerLimit;
 #endif
 	u8	RegEnableTxPowerByRate;
+	
+#ifdef OPENHD_THEO_PATCH
+	u8	RegTxPowerIndexOverride;
+#endif //OPENHD_THEO_PATCH
 
 	u8 target_tx_pwr_valid;
 	s8 target_tx_pwr_2g[RF_PATH_MAX][RATE_SECTION_NUM];
