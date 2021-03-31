@@ -119,7 +119,12 @@ static s32 update_txdesc(struct xmit_frame *pxmitframe, u8 *pmem, s32 sz , u8 ba
 		SET_TX_DESC_HWSEQ_EN_8812(ptxdesc, 1); /* Hw set sequence number */
 	} else
 		SET_TX_DESC_SEQ_8812(ptxdesc, pattrib->seqnum);
-
+	
+		if (pattrib->ldpc)
+			SET_TX_DESC_DATA_LDPC_8812(ptxdesc, 1);
+		if (pattrib->stbc)
+		SET_TX_DESC_DATA_STBC_8812(ptxdesc, pattrib->stbc & 3);
+	
 	if ((pxmitframe->frame_tag & 0x0f) == DATA_FRAMETAG) {
 		/* RTW_INFO("pxmitframe->frame_tag == DATA_FRAMETAG\n");		 */
 
